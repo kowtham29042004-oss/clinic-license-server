@@ -1,0 +1,160 @@
+@page
+@model LicenseServer.Pages.Admin.LicenseDetailModel
+@{
+    ViewData["Title"] = "Manage License";
+    var l = Model.License;
+}
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/Admin/Licenses" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h3 class="fw-bold mb-0">Manage License</h3>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success">@Model.Message</div>
+}
+@if (!string.IsNullOrEmpty(Model.Error))
+{
+    <div class="alert alert-danger">@Model.Error</div>
+}
+
+@if (l != null)
+{
+<!-- Info Card -->
+<div class="card p-4 mb-4">
+    <div class="row g-3">
+        <div class="col-md-12">
+            <label class="text-muted small">License Key</label>
+            <div class="key-box fs-5 mt-1">@l.LicenseKey</div>
+        </div>
+        <div class="col-md-4">
+            <label class="text-muted small">Customer</label>
+            <div class="fw-semibold">@l.Customer?.Name</div>
+            <div class="text-muted small">@l.Customer?.Email</div>
+        </div>
+        <div class="col-md-4">
+            <label class="text-muted small">Type / Status</label>
+            <div>
+                <span class="badge bg-secondary me-1">@l.Type</span>
+                <span class="badge @(l.Status == LicenseStatus.Active ? "badge-active" :
+                                     l.Status == LicenseStatus.Revoked ? "badge-revoked" :
+                                     l.Status == LicenseStatus.Suspended ? "badge-suspended" : "badge-expired")">
+                    @l.Status
+                </span>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <label class="text-muted small">Validity</label>
+            <div>@l.StartsAt.ToString("dd MMM yyyy") → @(l.Type == LicenseType.Lifetime ? "∞" : l.ExpiresAt.ToString("dd MMM yyyy"))</div>
+        </div>
+        <div class="col-md-4">
+            <label class="text-muted small">Max Machines</label>
+            <div class="fw-semibold">@l.MaxMachines</div>
+        </div>
+        <div class="col-md-8">
+            <label class="text-muted small">Features</label>
+            <div>@(string.IsNullOrEmpty(l.Features) ? "—" : l.Features)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="card p-4 mb-4">
+    <h5 class="fw-bold mb-3">Actions</h5>
+    <div class="d-flex flex-wrap gap-2">
+
+        <!-- Extend -->
+        <form method="post" asp-page-handler="Extend" class="d-flex gap-2 align-items-center">
+            <input type="hidden" name="id" value="@l.Id"/>
+            <input type="date" name="newExpiry" class="form-control form-control-sm"
+                   value="@l.ExpiresAt.ToString("yyyy-MM-dd")" style="width:160px"/>
+            <button class="btn btn-success btn-sm">
+                <i class="bi bi-calendar-plus me-1"></i>Extend
+            </button>
+        </form>
+
+        <!-- Revoke -->
+        <form method="post" asp-page-handler="Revoke"
+              onsubmit="return confirm('Revoke this license? The customer will be locked out immediately.')">
+            <input type="hidden" name="id" value="@l.Id"/>
+            <button class="btn btn-danger btn-sm">
+                <i class="bi bi-slash-circle me-1"></i>Revoke
+            </button>
+        </form>
+
+        <!-- Suspend / Reactivate -->
+        @if (l.Status == LicenseStatus.Suspended)
+        {
+            <form method="post" asp-page-handler="Activate">
+                <input type="hidden" name="id" value="@l.Id"/>
+                <button class="btn btn-primary btn-sm">
+                    <i class="bi bi-play-circle me-1"></i>Reactivate
+                </button>
+            </form>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Suspend">
+                <input type="hidden" name="id" value="@l.Id"/>
+                <button class="btn btn-warning btn-sm">
+                    <i class="bi bi-pause-circle me-1"></i>Suspend
+                </button>
+            </form>
+        }
+
+        <!-- Reset all machines -->
+        <form method="post" asp-page-handler="ResetMachines"
+              onsubmit="return confirm('Reset ALL machine activations? Customers will need to re-activate on each machine.')">
+            <input type="hidden" name="id" value="@l.Id"/>
+            <button class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-pc-display me-1"></i>Reset All Machines
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Activated Machines -->
+<div class="card p-4">
+    <h5 class="fw-bold mb-3">Activated Machines (@l.Activations.Count(a=>!a.IsRevoked) / @l.MaxMachines used)</h5>
+    <table class="table table-hover">
+        <thead class="table-light">
+            <tr><th>Machine ID (hashed)</th><th>Name</th><th>Activated</th><th>Last Seen</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var m in l.Activations.OrderByDescending(a => a.ActivatedAt))
+        {
+            <tr>
+                <td><code class="small">@m.MachineIdHash[..Math.Min(16, m.MachineIdHash.Length)]…</code></td>
+                <td>@m.MachineName</td>
+                <td>@m.ActivatedAt.ToString("dd MMM yyyy HH:mm")</td>
+                <td>@m.LastSeenAt.ToString("dd MMM yyyy HH:mm")</td>
+                <td>
+                    <span class="badge @(m.IsRevoked ? "badge-revoked" : "badge-active")">
+                        @(m.IsRevoked ? "Revoked" : "Active")
+                    </span>
+                </td>
+                <td>
+                    @if (!m.IsRevoked)
+                    {
+                        <form method="post" asp-page-handler="RevokeMachine">
+                            <input type="hidden" name="id" value="@l.Id"/>
+                            <input type="hidden" name="machineId" value="@m.Id"/>
+                            <button class="btn btn-xs btn-outline-danger btn-sm">
+                                <i class="bi bi-x"></i> Revoke
+                            </button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+}
+else
+{
+    <div class="alert alert-warning">License not found.</div>
+}

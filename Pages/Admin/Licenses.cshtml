@@ -1,0 +1,141 @@
+@page
+@model LicenseServer.Pages.Admin.LicensesModel
+@{
+    ViewData["Title"] = "Licenses";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold mb-0"><i class="bi bi-key me-2 text-primary"></i>Licenses</h3>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModal">
+        <i class="bi bi-plus-lg me-1"></i>Create License
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-success">@Model.Message</div>
+}
+
+@if (Model.NewKey != null)
+{
+    <div class="alert alert-success border-0 rounded-3">
+        <h5 class="fw-bold"><i class="bi bi-check-circle me-2"></i>License Created!</h5>
+        <p class="mb-2">Give this key to the customer:</p>
+        <div class="key-box fs-4 text-center py-3 mb-2 d-flex justify-content-center align-items-center gap-3">
+            <span id="licenseKeyText">@Model.NewKey</span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="copyKey()">
+                <i class="bi bi-clipboard"></i>
+            </button>
+        </div>
+        <small class="text-muted">This key is stored in the system. The customer enters it in the WPF application.</small>
+    </div>
+}
+
+<div class="card p-4">
+    <table class="table table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>License Key</th><th>Customer</th><th>Type</th><th>Status</th>
+                <th>Expires</th><th>Machines</th><th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var l in Model.Licenses)
+        {
+            <tr>
+                <td><span class="key-box small">@l.LicenseKey</span></td>
+                <td>@l.Customer?.Name</td>
+                <td><span class="badge bg-secondary">@l.Type</span></td>
+                <td>
+                    <span class="badge @(l.Status == LicenseStatus.Active ? "badge-active" :
+                                         l.Status == LicenseStatus.Revoked ? "badge-revoked" :
+                                         l.Status == LicenseStatus.Suspended ? "badge-suspended" : "badge-expired")">
+                        @l.Status
+                    </span>
+                </td>
+                <td>@(l.Type == LicenseType.Lifetime ? "∞ Lifetime" : l.ExpiresAt.ToString("dd MMM yyyy"))</td>
+                <td>@l.Activations.Count(a=>!a.IsRevoked) / @l.MaxMachines</td>
+                <td>
+                    <a href="/Admin/LicenseDetail?id=@l.Id" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-gear"></i> Manage
+                    </a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+<!-- Create License Modal -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content rounded-4">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Create New License</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Customer *</label>
+                            <select asp-for="Input.CustomerId" class="form-select" required>
+                                <option value="">-- Select Customer --</option>
+                                @foreach (var c in Model.Customers)
+                                {
+                                    <option value="@c.Id">@c.Name (@c.Email)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">License Type</label>
+                            <select asp-for="Input.Type" class="form-select">
+                                <option value="Trial">Trial</option>
+                                <option value="Monthly">Monthly</option>
+                                <option value="Annual" selected>Annual</option>
+                                <option value="Lifetime">Lifetime</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Max Machines</label>
+                            <input asp-for="Input.MaxMachines" type="number" class="form-control" min="1" max="100"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Start Date</label>
+                            <input asp-for="Input.StartsAt" type="date" class="form-control"
+                                   value="@DateTime.Today.ToString("yyyy-MM-dd")"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Expiry Date</label>
+                            <input asp-for="Input.ExpiresAt" type="date" class="form-control"
+                                   value="@DateTime.Today.AddYears(1).ToString("yyyy-MM-dd")"/>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Features (comma-separated)</label>
+                            <input asp-for="Input.Features" class="form-control" placeholder="Reception,Doctor,Reports"/>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Notes</label>
+                            <textarea asp-for="Input.Notes" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-key me-1"></i>Generate License Key
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function copyKey() {
+    const txt = document.getElementById('licenseKeyText').innerText;
+    navigator.clipboard.writeText(txt).then(() => alert('Key copied to clipboard!'));
+}
+</script>
+}
