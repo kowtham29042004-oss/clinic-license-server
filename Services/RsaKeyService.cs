@@ -15,7 +15,7 @@ namespace LicenseServer.Services
         public RsaKeyService(IConfiguration config, ILogger<RsaKeyService> logger)
         {
             _logger = logger;
-            string keyPath = config["Licensing:PrivateKeyPath"]
+            string keyPath = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON") != null ? Path.Combine(Path.GetTempPath(), "keys", "private.pem") : config["Licensing:PrivateKeyPath"]
                              ?? Path.Combine(AppContext.BaseDirectory, "keys", "private.pem");
 
             Directory.CreateDirectory(Path.GetDirectoryName(keyPath)!);

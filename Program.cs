@@ -6,14 +6,18 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── SQLite (for admin web panel user accounts only) ───────────────
-builder.Services.AddDbContext<LicenseDbContext>(opts =>
-    opts.UseSqlite("Data Source=license-admin.db"));
+// Use PORT env var from Render
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-// ── Firebase Firestore (license storage) ─────────────────────────
+// ── SQLite (admin panel accounts) ────────────────────────────────
+builder.Services.AddDbContext<LicenseDbContext>(opts =>
+    opts.UseSqlite("Data Source=/tmp/license-admin.db"));
+
+// ── Firebase Firestore ────────────────────────────────────────────
 builder.Services.AddSingleton<FirestoreService>();
 
-// ── RSA key service ───────────────────────────────────────────────
+// ── RSA signing ───────────────────────────────────────────────────
 builder.Services.AddSingleton<RsaKeyService>();
 builder.Services.AddSingleton<LicenseTokenService>();
 
@@ -24,32 +28,29 @@ builder.Services.Configure<IpRateLimitOptions>(
 builder.Services.AddInMemoryRateLimiting();
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
-// ── Cookie auth (admin panel login) ──────────────────────────────
+// ── Cookie auth ───────────────────────────────────────────────────
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(o =>
     {
-        o.LoginPath  = "/Auth/Login";
-        o.LogoutPath = "/Auth/Logout";
-        o.ExpireTimeSpan = TimeSpan.FromHours(8);
+        o.LoginPath       = "/Auth/Login";
+        o.LogoutPath      = "/Auth/Logout";
+        o.ExpireTimeSpan  = TimeSpan.FromHours(8);
     });
 
 builder.Services.AddAuthorization(opts =>
     opts.AddPolicy("AdminOnly", p => p.RequireClaim("role", "admin")));
 
-// ── MVC + Razor Pages ─────────────────────────────────────────────
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// ── CORS ──────────────────────────────────────────────────────────
 builder.Services.AddCors(opt => opt.AddPolicy("Netlify", p =>
-    p.WithOrigins("https://clinic-admin-2026.netlify.app",
-                  "http://localhost:3000")
+    p.WithOrigins("https://clinic-admin-2026.netlify.app", "http://localhost:3000")
      .AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
 
-// Auto-create SQLite DB on startup
+// Auto-migrate SQLite
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<LicenseDbContext>();
@@ -65,5 +66,6 @@ app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/Auth/Login"));
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", time = DateTime.UtcNow }));
 
 app.Run();
