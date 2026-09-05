@@ -137,6 +137,12 @@ namespace LicenseServer.Controllers
 
             return Ok(_tokenSvc.CreateToken(lic));
         }
+            // ── GET /api/activation/public-key ────────────────────────────────
+        [HttpGet("public-key")]
+        public IActionResult GetPublicKey()
+        {
+            return Ok(new { publicKey = _tokenSvc.GetPublicKeyPem() });
+        }
     }
 
     public class ActivateRequest
