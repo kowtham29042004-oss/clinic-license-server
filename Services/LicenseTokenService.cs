@@ -8,6 +8,7 @@ namespace LicenseServer.Services
     {
         private readonly RsaKeyService _keys;
         public LicenseTokenService(RsaKeyService keys) => _keys = keys;
+        public string GetPublicKeyPem() => _keys.GetPublicKeyPem();
 
         /// <summary>Creates RSA-PSS signed token from a Firestore license.</summary>
         public SignedLicenseToken CreateToken(FirestoreLicense license)
