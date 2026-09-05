@@ -15,36 +15,38 @@ namespace LicenseServer.Services
         public RsaKeyService(IConfiguration config, ILogger<RsaKeyService> logger)
         {
             _logger = logger;
-            string keyPath = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON") != null ? Path.Combine(Path.GetTempPath(), "keys", "private.pem") : config["Licensing:PrivateKeyPath"]
-                             ?? Path.Combine(AppContext.BaseDirectory, "keys", "private.pem");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(keyPath)!);
-
             _rsa = RSA.Create(4096);
+
+            // First try to load from environment variable (permanent storage)
+            string? pemFromEnv = Environment.GetEnvironmentVariable("RSA_PRIVATE_KEY");
+            if (!string.IsNullOrEmpty(pemFromEnv))
+            {
+                _rsa.ImportFromPem(pemFromEnv.Replace("\\n", "\n"));
+                _logger.LogInformation("RSA private key loaded from environment variable.");
+                return;
+            }
+
+            // Fallback: load from file
+            string keyPath = config["Licensing:PrivateKeyPath"]
+                             ?? Path.Combine(AppContext.BaseDirectory, "keys", "private.pem");
+            Directory.CreateDirectory(Path.GetDirectoryName(keyPath)!);
 
             if (File.Exists(keyPath))
             {
-                // Load existing private key
-                string pem = File.ReadAllText(keyPath);
-                _rsa.ImportFromPem(pem);
+                _rsa.ImportFromPem(File.ReadAllText(keyPath));
                 _logger.LogInformation("RSA private key loaded from {Path}", keyPath);
             }
             else
             {
-                // Generate new key pair and save private key
                 string privatePem = _rsa.ExportRSAPrivateKeyPem();
                 File.WriteAllText(keyPath, privatePem);
-                // Restrict file permissions on Linux/macOS
                 if (!OperatingSystem.IsWindows())
-                    File.SetUnixFileMode(keyPath,
-                        UnixFileMode.UserRead | UnixFileMode.UserWrite);
-
+                    File.SetUnixFileMode(keyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 _logger.LogWarning("New RSA key pair generated. Private key saved to {Path}", keyPath);
-
-                // Also write the public key for easy retrieval
                 string pubPath = Path.Combine(Path.GetDirectoryName(keyPath)!, "public.pem");
                 File.WriteAllText(pubPath, _rsa.ExportSubjectPublicKeyInfoPem());
-                _logger.LogInformation("Public key saved to {Path}", pubPath);
+                // Print public key to logs so we can always get it
+                _logger.LogWarning("PUBLIC KEY:\n{PubKey}", _rsa.ExportSubjectPublicKeyInfoPem());
             }
         }
 
