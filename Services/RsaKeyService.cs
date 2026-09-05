@@ -43,6 +43,7 @@ namespace LicenseServer.Services
                 if (!OperatingSystem.IsWindows())
                     File.SetUnixFileMode(keyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 _logger.LogWarning("New RSA key pair generated. Private key saved to {Path}", keyPath);
+                _logger.LogWarning("PRIVATE_KEY_EXPORT: {Key}", privatePem);
                 string pubPath = Path.Combine(Path.GetDirectoryName(keyPath)!, "public.pem");
                 File.WriteAllText(pubPath, _rsa.ExportSubjectPublicKeyInfoPem());
                 // Print public key to logs so we can always get it
