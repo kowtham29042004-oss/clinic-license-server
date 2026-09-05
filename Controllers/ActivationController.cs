@@ -152,16 +152,3 @@ namespace LicenseServer.Controllers
         public string MachineIdHash { get; set; } = "";
     }
 }
-
-namespace LicenseServer.Controllers
-{
-    // ── Open endpoint — no auth — returns RSA public key PEM ─────────────
-    [ApiController]
-    [Route("api/activation")]
-    public class PublicKeyController : ControllerBase
-    {
-        [HttpGet("publickey")]
-        public IActionResult GetPublicKey([FromServices] RsaKeyService keys)
-            => Ok(new { publicKeyPem = keys.GetPublicKeyPem() });
-    }
-}
